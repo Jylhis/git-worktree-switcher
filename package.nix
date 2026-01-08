@@ -1,0 +1,48 @@
+{
+  lib,
+  stdenv,
+  makeWrapper,
+  installShellFiles,
+  fzf,
+  git,
+}:
+
+stdenv.mkDerivation rec {
+  pname = "git-worktree-switcher";
+  version = "0.2.8-fork";
+
+  src = ./.;
+
+  nativeBuildInputs = [
+    makeWrapper
+    installShellFiles
+  ];
+
+  buildInputs = [
+    fzf
+    git
+  ];
+
+  installPhase = ''
+    runHook preInstall
+
+    install -Dm755 wt $out/bin/wt
+    wrapProgram $out/bin/wt \
+      --prefix PATH : ${lib.makeBinPath [ fzf git ]}
+
+    installShellCompletion --zsh completions/_wt_completion
+    installShellCompletion --bash completions/wt_completion
+    installShellCompletion --fish completions/wt.fish
+
+    runHook postInstall
+  '';
+
+  meta = {
+    description = "Switch between git worktrees with speed";
+    homepage = "https://github.com/mateusauler/git-worktree-switcher";
+    license = lib.licenses.mit;
+    maintainers = with lib.maintainers; [ jiriks74 mateusauler ];
+    mainProgram = "wt";
+    platforms = lib.platforms.all;
+  };
+}
