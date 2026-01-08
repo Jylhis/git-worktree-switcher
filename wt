@@ -36,6 +36,73 @@ worktree_list_names() {
 	fi
 }
 
+add_worktree() {
+	local worktree_name="${args[1]}"
+	local source_branch="${args[2]}"
+	local worktree_path
+	local repo_root
+
+	# Validate worktree name
+	if [[ -z "$worktree_name" ]]; then
+		echo "Error: worktree name is required" >&2
+		echo "Usage: wt add <worktree-name> [source-branch]" >&2
+		exit 1
+	fi
+
+	# Check git repository
+	if ! git rev-parse --git-dir &> /dev/null; then
+		echo "Error: not in a git repository" >&2
+		exit 1
+	fi
+
+	# Determine worktree path
+	repo_root=$(git rev-parse --show-toplevel)
+	worktree_path="$(dirname "$repo_root")/$worktree_name"
+
+	# Check for existing worktree/path
+	if [[ -e "$worktree_path" ]]; then
+		echo "Error: path already exists: $worktree_path" >&2
+		exit 1
+	fi
+
+	if git worktree list --porcelain | grep -q "^worktree.*/$worktree_name$"; then
+		echo "Error: worktree '$worktree_name' already exists" >&2
+		exit 1
+	fi
+
+	# Use current branch if no source specified
+	if [[ -z "$source_branch" ]]; then
+		source_branch=$(git branch --show-current)
+		if [[ -z "$source_branch" ]]; then
+			echo "Error: not on any branch and no source branch specified" >&2
+			exit 1
+		fi
+	fi
+
+	# Check if source exists (local/remote branch or tag)
+	if git show-ref --verify --quiet "refs/heads/$source_branch" || \
+	   git show-ref --verify --quiet "refs/remotes/origin/$source_branch" || \
+	   git show-ref --verify --quiet "refs/tags/$source_branch"; then
+		# Checkout existing branch/tag
+		echo "Creating worktree '$worktree_name' from existing branch/tag '$source_branch'..."
+		if git worktree add "$worktree_path" "$source_branch"; then
+			echo "Created worktree '$worktree_name' from existing branch/tag '$source_branch'"
+		else
+			echo "Error: failed to create worktree" >&2
+			exit 1
+		fi
+	else
+		# Create new branch
+		echo "Creating worktree '$worktree_name' with new branch '$worktree_name'..."
+		if git worktree add -b "$worktree_name" "$worktree_path" "$source_branch"; then
+			echo "Created worktree '$worktree_name' with new branch '$worktree_name'"
+		else
+			echo "Error: failed to create worktree with new branch" >&2
+			exit 1
+		fi
+	fi
+}
+
 help_message() {
 	echo -e "wt lets you switch between your git worktrees with speed.\n"
 	echo "Usage:"
@@ -44,6 +111,7 @@ help_message() {
 	echo -e "\twt -i: interactively select a worktree using fzf."
 	echo -e "\twt list: list out all the git worktrees."
 	echo -e "\twt names: list out only the git worktree names."
+	echo -e "\twt add <name> [source]: create a new worktree with optional source branch."
 	echo -e "\twt version: show the CLI version."
 	echo -e "\twt init <shell>: print the init script for <shell>."
 	echo -e "\twt help: shows this help message."
@@ -110,6 +178,9 @@ names)
 	worktree_list_names
 	echo -e '\033[0;31mThe '\''names'\'' option is deprecated and will be removed in future versions.\033[0m' >&2
 	echo -e '\033[0;31mUse '\''list'\'' instead.\033[0m' >&2
+	;;
+add)
+	add_worktree
 	;;
 help)
 	help_message
