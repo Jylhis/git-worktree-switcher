@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
 # Switch between git worktrees with speed.
 
 args=("$@")
 VERSION="0.2.8-fork"
-TMP_PATH=$(mktemp)
 BINARY_PATH=$(realpath "$0")
 CHANGE_DIRECTORY_PREFIX="changedir:"
 
-
-# Escape forward slash
-arg=${args[0]/\//\\\/}
 is_interactive=false
 
 for arg in "${args[@]}"; do
@@ -27,18 +24,27 @@ for arg in "${args[@]}"; do
 	fi
 done
 
+# Lists all git worktree names (basenames only)
+# Output: One worktree name per line
 worktree_list_names() {
 	if git rev-parse --git-dir &> /dev/null; then
 		git worktree list --porcelain \
-			| awk '/^worktree / { sub("worktree ", ""); print; }' \
-			| tr \\n \\0 \
-			| xargs -0 -L 1 basename
+			| awk '/^worktree / {
+				sub("worktree ", "");
+				n = split($0, parts, "/");
+				print parts[n]
+			}'
 	fi
 }
 
+# Creates a new git worktree with optional source branch
+# Args:
+#   $1 (worktree_name): Name for the new worktree and directory
+#   $2 (source_branch): Optional source branch/tag/commit (defaults to current branch)
+# Usage: wt add <name> [source]
 add_worktree() {
-	local worktree_name="${args[1]}"
-	local source_branch="${args[2]}"
+	local worktree_name="${args[1]:-}"
+	local source_branch="${args[2]:-}"
 	local worktree_path
 	local repo_root
 
@@ -46,6 +52,12 @@ add_worktree() {
 	if [[ -z "$worktree_name" ]]; then
 		echo "Error: worktree name is required" >&2
 		echo "Usage: wt add <worktree-name> [source-branch]" >&2
+		exit 1
+	fi
+
+	# Prevent path traversal attacks
+	if [[ "$worktree_name" =~ [./] ]]; then
+		echo "Error: worktree name cannot contain '.', '/', or path separators" >&2
 		exit 1
 	fi
 
@@ -85,24 +97,26 @@ add_worktree() {
 	   git show-ref --verify --quiet "refs/tags/$source_branch"; then
 		# Checkout existing branch/tag
 		echo "Creating worktree '$worktree_name' from existing branch/tag '$source_branch'..."
-		if git worktree add "$worktree_path" "$source_branch"; then
+		if error_msg=$(git worktree add "$worktree_path" "$source_branch" 2>&1); then
 			echo "Created worktree '$worktree_name' from existing branch/tag '$source_branch'"
 		else
-			echo "Error: failed to create worktree" >&2
+			echo "Error: failed to create worktree: $error_msg" >&2
 			exit 1
 		fi
 	else
 		# Create new branch
 		echo "Creating worktree '$worktree_name' with new branch '$worktree_name'..."
-		if git worktree add -b "$worktree_name" "$worktree_path" "$source_branch"; then
+		if error_msg=$(git worktree add -b "$worktree_name" "$worktree_path" "$source_branch" 2>&1); then
 			echo "Created worktree '$worktree_name' with new branch '$worktree_name'"
 		else
-			echo "Error: failed to create worktree with new branch" >&2
+			echo "Error: failed to create worktree with new branch: $error_msg" >&2
 			exit 1
 		fi
 	fi
 }
 
+# Displays the help message with usage instructions
+# Output: Formatted help text to stdout
 help_message() {
 	echo -e "wt lets you switch between your git worktrees with speed.\n"
 	echo "Usage:"
@@ -119,6 +133,8 @@ help_message() {
 
 get_dest_path="\$(echo \"\$result\" | awk '/^$CHANGE_DIRECTORY_PREFIX.*/ {sub(\"$CHANGE_DIRECTORY_PREFIX\", \"\"); print; exit}')"
 
+# Generates shell wrapper function for Bash/Zsh
+# Output: Shell function code to stdout
 init_bash() {
 	cat <<EOF
 wt() {
@@ -134,6 +150,8 @@ wt() {
 EOF
 }
 
+# Generates shell wrapper function for Fish
+# Output: Fish function code to stdout
 init_fish() {
 	cat <<EOF
 function wt
@@ -149,9 +167,13 @@ end
 EOF
 }
 
+# Outputs shell-specific init script for the requested shell
+# Args:
+#   $1 (shell): Shell name (bash, zsh, or fish)
+# Usage: wt init <shell>
 init() {
-	shell="${args[1]}"
-	if [[ -z $shell ]]; then
+	shell="${args[1]:-}"
+	if [[ -z "$shell" ]]; then
 		echo "Please supply a shell."
 		echo "    eg. wt init bash"
 		exit 1
@@ -186,12 +208,18 @@ help)
 	help_message
 	;;
 version)
-	echo Version: $VERSION
+	echo "Version: $VERSION"
 	;;
 init)
 	init
 	;;
 *)
+	# Check if in a git repository
+	if ! git rev-parse --git-dir &> /dev/null; then
+		echo "Error: not in a git repository" >&2
+		exit 1
+	fi
+
 	if [[ "$is_interactive" == true ]]; then
 		directory=$(git worktree list --porcelain |
 		awk '/worktree/ {wt=$2} /branch/ {sub("refs/heads/", "", $2); print wt " [" $2 "]"}' |
@@ -205,8 +233,9 @@ init)
 esac
 
 # If directory variable is not empty then change worktree
-if [ -z "$directory" ]; then
-	:
-else
+if [[ -n "${directory:-}" ]]; then
 	echo "$CHANGE_DIRECTORY_PREFIX$directory"
+elif [[ -n "${args[0]:-}" && "${args[0]}" != "-i" && "${args[0]}" != "list" && "${args[0]}" != "names" && "${args[0]}" != "add" && "${args[0]}" != "help" && "${args[0]}" != "version" && "${args[0]}" != "init" ]]; then
+	echo "Error: worktree '${args[0]}' not found" >&2
+	exit 1
 fi
