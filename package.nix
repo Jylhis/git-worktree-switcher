@@ -11,7 +11,18 @@ stdenv.mkDerivation rec {
   pname = "git-worktree-switcher";
   version = "0.2.8-fork";
 
-  src = ./.;
+  src = lib.cleanSourceWith {
+    src = ./.;
+    filter = path: type:
+      let
+        baseName = baseNameOf path;
+      in
+      # Include only necessary files
+      baseName == "wt" ||
+      baseName == "completions" ||
+      baseName == "LICENSE" ||
+      baseName == "README.md";
+  };
 
   nativeBuildInputs = [
     makeWrapper
@@ -38,7 +49,7 @@ stdenv.mkDerivation rec {
   '';
 
   meta = {
-    description = "Switch between git worktrees with speed";
+    description = "Switch between git worktrees with speed. Fork with dynamic completions, add command, and special character handling";
     homepage = "https://github.com/mateusauler/git-worktree-switcher";
     license = lib.licenses.mit;
     maintainers = with lib.maintainers; [ jiriks74 mateusauler ];
