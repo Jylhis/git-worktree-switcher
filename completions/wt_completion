@@ -4,23 +4,49 @@
 # Reference: https://www.gnu.org/software/bash/manual/html_node/A-Programmable-Completion-Example.html
 
 _wt() {
-    local cur
-	# The currently typed prefix to be completed
-	cur="${COMP_WORDS[COMP_CWORD]}"
-	COMPREPLY=()
+    local cur prev
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    COMPREPLY=()
 
-    # Only show suggestions for the root command (wt)
-    # Pass autocompletion suggestion as "words (-W)" to `compgen` separated by space
-	# Escape each suggestion special characters
-    if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]]; then
-		# Use the newline as a separator for the suggestions
-		local IFS=$'\n'
-		local suggestions
-		suggestions=$(compgen -W "$(wt list)" -- "$cur")
-		for word in $suggestions; do
-			COMPREPLY+=("$(printf '%q' "$word")")
-		done
+    # Subcommands and options
+    local subcommands="list add help version init -i"
+
+    # First argument: subcommands, options, or worktree names
+    if [[ ${COMP_CWORD} -eq 1 ]]; then
+        local IFS=$'\n'
+        local suggestions
+
+        if [[ ${cur} == -* ]]; then
+            # Complete options
+            COMPREPLY=($(compgen -W "-i" -- "$cur"))
+        else
+            # Complete subcommands and worktree names
+            local worktrees
+            worktrees=$(wt list 2>/dev/null)
+            suggestions=$(compgen -W "$subcommands $worktrees" -- "$cur")
+            for word in $suggestions; do
+                COMPREPLY+=("$(printf '%q' "$word")")
+            done
+        fi
+        return
     fi
+
+    # Context-aware completion for second argument
+    case "$prev" in
+        add)
+            # Complete with git branch names for 'add' command
+            if git rev-parse --git-dir &>/dev/null; then
+                local branches
+                branches=$(git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/ refs/tags/ 2>/dev/null)
+                COMPREPLY=($(compgen -W "$branches" -- "$cur"))
+            fi
+            ;;
+        init)
+            # Complete with supported shell names
+            COMPREPLY=($(compgen -W "bash zsh fish" -- "$cur"))
+            ;;
+    esac
 }
 
 # complete

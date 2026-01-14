@@ -16,10 +16,12 @@ stdenv.mkDerivation rec {
     filter = path: type:
       let
         baseName = baseNameOf path;
+        relPath = lib.removePrefix "${toString ./.}/" path;
       in
       # Include only necessary files
       baseName == "wt" ||
       baseName == "completions" ||
+      lib.hasPrefix "completions/" relPath ||
       baseName == "LICENSE" ||
       baseName == "README.md";
   };
@@ -43,7 +45,6 @@ stdenv.mkDerivation rec {
 
     installShellCompletion --zsh completions/_wt_completion
     installShellCompletion --bash completions/wt_completion
-    installShellCompletion --fish completions/wt.fish
 
     runHook postInstall
   '';

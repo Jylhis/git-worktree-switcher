@@ -1,23 +1,61 @@
 #compdef wt
 
 # AUTOCOMPLETION FOR ZSH
-# Reference: https://zsh.sourceforge.io/Doc/Release/Completion-Widgets.html
+# Reference: https://zsh.sourceforge.io/Doc/Release/Completion-System.html
 
-# Declare an associative array named `opts`
-declare -A opts
+_wt() {
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
 
-# Split the worktree names into an array, line-by-line.
-list=("${(@f)$(wt list)}")
+    _arguments -C \
+        '1: :->command' \
+        '2: :->arg2' \
+        '*: :->args'
 
-# Create associative array with key same as its value
-# Completion keywords are taken as keys of arrays and the possible matches are their values
-for item in $list; do
-	# Escape every element's special characters
-	item=$(printf '%q' "$item")
-	opts+=(["$item"]="$item")
-done
+    case $state in
+        command)
+            local -a subcommands
+            subcommands=(
+                'list:list all git worktree names'
+                'add:create a new worktree'
+                'help:show help message'
+                'version:show CLI version'
+                'init:print init script for shell'
+                '-i:interactive mode with fzf'
+            )
 
-# Add the keys of `opts` as completion options for the `wt` command.
-# `-Q` quotes the completion options.
-# `-a` specifies that the options are taken from an associative array.
-compadd -Qa opts
+            # Get worktree names
+            local -a worktrees
+            if git rev-parse --git-dir &>/dev/null; then
+                worktrees=("${(@f)$(wt list 2>/dev/null)}")
+            fi
+
+            _alternative \
+                'subcommands:subcommand:((${subcommands}))' \
+                'worktrees:worktree:compadd -Q -a worktrees'
+            ;;
+        arg2)
+            case $line[1] in
+                add)
+                    # Complete with git branches, remotes, and tags
+                    if git rev-parse --git-dir &>/dev/null; then
+                        local -a refs
+                        refs=(${(f)"$(git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/ refs/tags/ 2>/dev/null)"})
+                        _describe -t refs 'branch/tag' refs
+                    fi
+                    ;;
+                init)
+                    local -a shells
+                    shells=(
+                        'bash:Bash shell'
+                        'zsh:Zsh shell'
+                        'fish:Fish shell'
+                    )
+                    _describe -t shells 'shell' shells
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_wt "$@"
