@@ -30,7 +30,6 @@ The main executable is a single bash script at `./wt` with no dependencies beyon
 
 - **Bash** (`wt_completion`): Uses `complete -F` with dynamic completion via `$(wt list)`
 - **Zsh** (`_wt_completion`): Uses associative arrays with `compadd -Qa`
-- **Fish** (`wt.fish`): One-liner using `complete -c` with dynamic `(wt list)` output
 
 All completions dynamically call `wt list` to get current worktree names, supporting spaces and special characters through proper quoting.
 
@@ -94,10 +93,6 @@ source completions/wt_completion
 fpath=(completions $fpath)
 autoload -Uz compinit && compinit
 # Then test: wt <TAB>
-
-# Fish
-cp completions/wt.fish ~/.config/fish/completions/
-# Restart fish, then test: wt <TAB>
 ```
 
 ## Important Implementation Details

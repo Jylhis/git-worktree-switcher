@@ -61,16 +61,6 @@ Add this to the end of your `~/.zshrc`:
 eval "$(command wt init zsh)"
 ```
 
-**For Fish**
-```bash
-cp wt.fish ~/.config/fish/completions
-```
-
-Add this to the end of your `~/.config/fish/config.fish`:
-```bash
-command wt init fish | source
-```
-
 ---
 Tab autocompletion works for switching between your worktrees.
 ```bash
