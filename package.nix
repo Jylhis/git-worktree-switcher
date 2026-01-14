@@ -51,9 +51,8 @@ stdenv.mkDerivation rec {
 
   meta = {
     description = "Switch between git worktrees with speed. Fork with dynamic completions, add command, and special character handling";
-    homepage = "https://github.com/mateusauler/git-worktree-switcher";
+    homepage = "https://github.com/Jylhis/git-worktree-switcher";
     license = lib.licenses.mit;
-    maintainers = with lib.maintainers; [ jiriks74 mateusauler ];
     mainProgram = "wt";
     platforms = lib.platforms.all;
   };
