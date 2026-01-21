@@ -10,7 +10,7 @@ _wt() {
     COMPREPLY=()
 
     # Subcommands and options
-    local subcommands="list add help version init -i"
+    local subcommands="list add remove help version init -i"
 
     # First argument: subcommands, options, or worktree names
     if [[ ${COMP_CWORD} -eq 1 ]]; then
@@ -41,6 +41,13 @@ _wt() {
                 branches=$(git for-each-ref --format='%(refname:short)' refs/heads/ refs/remotes/ refs/tags/ 2>/dev/null)
                 COMPREPLY=($(compgen -W "$branches" -- "$cur"))
             fi
+            ;;
+        remove)
+            # Complete with worktree names and --force flag
+            local IFS=$'\n'
+            local worktrees
+            worktrees=$(wt list 2>/dev/null)
+            COMPREPLY=($(compgen -W "$worktrees --force" -- "$cur"))
             ;;
         init)
             # Complete with supported shell names

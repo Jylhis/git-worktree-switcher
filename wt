@@ -115,6 +115,75 @@ add_worktree() {
 	fi
 }
 
+# Removes an existing git worktree
+# Args:
+#   $1 (worktree_name): Name of the worktree to remove
+#   --force: Force removal even if worktree is dirty
+# Usage: wt remove <name> [--force]
+remove_worktree() {
+	local worktree_name=""
+	local force=false
+	local worktree_path=""
+
+	# Parse arguments
+	for arg in "${args[@]:1}"; do
+		if [[ "$arg" == "--force" || "$arg" == "-f" ]]; then
+			force=true
+		elif [[ -z "$worktree_name" ]]; then
+			worktree_name="$arg"
+		fi
+	done
+
+	# Validate worktree name
+	if [[ -z "$worktree_name" ]]; then
+		echo "Error: worktree name is required" >&2
+		echo "Usage: wt remove <worktree-name> [--force]" >&2
+		exit 1
+	fi
+
+	# Check git repository
+	if ! git rev-parse --git-dir &> /dev/null; then
+		echo "Error: not in a git repository" >&2
+		exit 1
+	fi
+
+	# Find worktree path by name
+	worktree_path=$(git worktree list --porcelain \
+		| awk -v name="$worktree_name" '/^worktree / {
+			path = substr($0, 10);
+			n = split(path, parts, "/");
+			if (parts[n] == name) print path
+		}')
+
+	if [[ -z "$worktree_path" ]]; then
+		echo "Error: worktree '$worktree_name' not found" >&2
+		exit 1
+	fi
+
+	# Prevent removing main worktree
+	local main_worktree
+	main_worktree=$(git worktree list --porcelain | awk '/^worktree / {print substr($0, 10); exit}')
+	if [[ "$worktree_path" == "$main_worktree" ]]; then
+		echo "Error: cannot remove the main worktree" >&2
+		exit 1
+	fi
+
+	# Remove the worktree
+	local git_args=("worktree" "remove")
+	if [[ "$force" == true ]]; then
+		git_args+=("--force")
+	fi
+	git_args+=("$worktree_path")
+
+	echo "Removing worktree '$worktree_name'..."
+	if error_msg=$(git "${git_args[@]}" 2>&1); then
+		echo "Removed worktree '$worktree_name'"
+	else
+		echo "Error: failed to remove worktree: $error_msg" >&2
+		exit 1
+	fi
+}
+
 # Displays the help message with usage instructions
 # Output: Formatted help text to stdout
 help_message() {
@@ -126,6 +195,7 @@ help_message() {
 	echo -e "\twt list: list out all the git worktrees."
 	echo -e "\twt names: list out only the git worktree names."
 	echo -e "\twt add <name> [source]: create a new worktree with optional source branch."
+	echo -e "\twt remove <name> [--force]: remove an existing worktree."
 	echo -e "\twt version: show the CLI version."
 	echo -e "\twt init <shell>: print the init script for <shell>."
 	echo -e "\twt help: shows this help message."
@@ -204,6 +274,9 @@ names)
 add)
 	add_worktree
 	;;
+remove)
+	remove_worktree
+	;;
 help)
 	help_message
 	;;
@@ -235,7 +308,7 @@ esac
 # If directory variable is not empty then change worktree
 if [[ -n "${directory:-}" ]]; then
 	echo "$CHANGE_DIRECTORY_PREFIX$directory"
-elif [[ -n "${args[0]:-}" && "${args[0]}" != "-i" && "${args[0]}" != "list" && "${args[0]}" != "names" && "${args[0]}" != "add" && "${args[0]}" != "help" && "${args[0]}" != "version" && "${args[0]}" != "init" ]]; then
+elif [[ -n "${args[0]:-}" && "${args[0]}" != "-i" && "${args[0]}" != "list" && "${args[0]}" != "names" && "${args[0]}" != "add" && "${args[0]}" != "remove" && "${args[0]}" != "help" && "${args[0]}" != "version" && "${args[0]}" != "init" ]]; then
 	echo "Error: worktree '${args[0]}' not found" >&2
 	exit 1
 fi

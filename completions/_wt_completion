@@ -18,6 +18,7 @@ _wt() {
             subcommands=(
                 'list:list all git worktree names'
                 'add:create a new worktree'
+                'remove:remove an existing worktree'
                 'help:show help message'
                 'version:show CLI version'
                 'init:print init script for shell'
@@ -44,6 +45,14 @@ _wt() {
                         _describe -t refs 'branch/tag' refs
                     fi
                     ;;
+                remove)
+                    # Complete with worktree names
+                    if git rev-parse --git-dir &>/dev/null; then
+                        local -a worktrees
+                        worktrees=("${(@f)$(wt list 2>/dev/null)}")
+                        compadd -Q -a worktrees
+                    fi
+                    ;;
                 init)
                     local -a shells
                     shells=(
@@ -52,6 +61,17 @@ _wt() {
                         'fish:Fish shell'
                     )
                     _describe -t shells 'shell' shells
+                    ;;
+            esac
+            ;;
+        args)
+            # Handle additional arguments for commands
+            case $line[1] in
+                remove)
+                    # Complete with --force flag
+                    local -a flags
+                    flags=('--force:force removal even if worktree is dirty')
+                    _describe -t flags 'flag' flags
                     ;;
             esac
             ;;
